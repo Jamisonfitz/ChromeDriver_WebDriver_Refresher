@@ -64,7 +64,8 @@ if (Test-Path $webDriverPath) {
     $oldwebDriverVersion = (Get-Item $webDriverPath).VersionInfo.FileVersion
     if (Test-Path $webDriverPathbackup) {
         Remove-Item $webDriverPathbackup -Force
-    } else {
+    }
+    else {
         Rename-Item -Path $webDriverPath -NewName 'Backup_WebDriver.dll' -Force
     }
 }
@@ -73,7 +74,8 @@ if (Test-Path $chromeDriverPath) {
     $oldchromeDriverVersion = (& $chromeDriverPath --version).Split(' ')[1] 
     if (Test-Path $chromeDriverPathbackup) {
         Remove-Item $chromeDriverPathbackup -Force
-    } else {
+    }
+    else {
         Rename-Item -Path $chromeDriverPath -NewName 'Backup_ChromeDriver.exe' -Force
     }
 }
@@ -98,7 +100,8 @@ foreach ($location in $chromeLocations) {
 
 if ($chromeVersion) {
     Write-Host "Google Chrome version: $chromeVersion"
-} else {
+}
+else {
     Write-Host "Google Chrome not found"
 }
 
@@ -123,19 +126,25 @@ $chromeDriverPath = Join-Path $destinationPath 'chromedriver.exe'
 
 Write-Host "$chromeDriverPath Was: $oldchromeDriverVersion Now: $chromeDriverVersion"
 
+$rng = Get-Random -Minimum 0 -Maximum 999
 # Update WebDriver
 $webDriverUrl = "https://www.nuget.org/api/v2/package/Selenium.WebDriver"
-$zipPath = Join-Path ([System.IO.Path]::GetTempPath()) 'selenium.zip'
-$extractPath = Join-Path ([System.IO.Path]::GetTempPath()) 'selenium'
+$zipPath = Join-Path ([System.IO.Path]::GetTempPath()) "$rng-selenium.zip"
+$extractPath = Join-Path ([System.IO.Path]::GetTempPath()) "$rng-selenium"
 
 try {
-Invoke-WebRequest -Uri $webDriverUrl -OutFile $zipPath
-Write-Host 'Updating WebDriver to the latest version...'
+    Invoke-WebRequest -Uri $webDriverUrl -OutFile $zipPath
+    Write-Host 'Updating WebDriver to the latest version...'
+    Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+
+    $dllPath = Join-Path $extractPath 'lib\net45\WebDriver.dll'
+    # Swap net45 for net47, net48, net5.0, net6.0, netstandard2.0, or netstandard2.1
+    Copy-Item -Path $dllPath -Destination $destinationPath -Force
 
 }
 catch {
-Write-Host "WebDriver update failed with error: $_"
-exit
+    Write-Host "WebDriver update failed with error: $_"
+    exit
 }
 
 Write-Host "$webDriverPath Was: $oldwebDriverVersion Now: $webDriverVersion_new"
@@ -144,9 +153,14 @@ Write-Host "$webDriverPath Was: $oldwebDriverVersion Now: $webDriverVersion_new"
 $logFilePath = Join-Path $destinationPath 'WebDriverUpdater.log'
 
 if (-not (Test-Path $logFilePath)) {
-New-Item -ItemType File -Path $logFilePath -Force | Out-Null
+    New-Item -ItemType File -Path $logFilePath -Force | Out-Null
 }
 
+$timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+$logMessage = "{0} - WebDriver updated to the latest version. ChromeDriver upgraded from {1} to {2}" -f $timestamp, $oldchromeDriverVersion, (& $chromeDriverPath --version).Split(' ')[1]
+$logMessage += [Environment]::NewLine + "{0} - WebDriver updated to the latest version. WebDriver.dll upgraded from {1} to {2}" -f $timestamp, $oldwebDriverVersion, $webDriverVersion_new
+
+Add-Content -Path $logFilePath -Value $logMessage
 $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 $logMessage = "{0} - WebDriver updated to the latest version. ChromeDriver upgraded from {1} to {2}" -f $timestamp, $oldchromeDriverVersion, (& $chromeDriverPath --version).Split(' ')[1]
 $logMessage += [Environment]::NewLine + "{0} - WebDriver updated to the latest version. WebDriver.dll upgraded from {1} to {2}" -f $timestamp, $oldwebDriverVersion, $webDriverVersion_new
